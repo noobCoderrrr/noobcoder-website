@@ -68,6 +68,9 @@
     #error {
       color: var(--red);
       min-height: 1.2em;
+      max-width: 460px;
+      font-size: 14px;
+      line-height: 1.5;
     }
     button {
       font: inherit;
@@ -730,16 +733,32 @@
         return;
       }
       try {
-        if (window.DeviceOrientationEvent?.requestPermission) {
-          try { await DeviceOrientationEvent.requestPermission(); } catch (e) {}
-        }
+        // Ask for the camera first: on iPhone, showing another permission
+        // prompt before it uses up the tap and the camera request is refused.
         await startCamera();
         S.started = true;
         $('#start').style.display = 'none';
         $('#controls').style.display = 'flex';
         toast('SYSTEMS ONLINE');
+        // Tilt sensors are optional; ask afterwards and ignore a refusal.
+        if (window.DeviceOrientationEvent?.requestPermission) {
+          DeviceOrientationEvent.requestPermission().catch(() => {});
+        }
       } catch (e) {
-        $('#error').textContent = 'Could not start camera: ' + (e.message || e.name);
+        if (e.name === 'NotAllowedError') {
+          $('#error').innerHTML =
+            'Camera access was blocked.<br><br>' +
+            'iPhone: Settings → your browser (Safari or Chrome) → Camera → Allow. ' +
+            'In Safari also tap <b>aA</b> in the address bar → Website Settings → Camera → Allow.<br><br>' +
+            'Android: tap the icon left of the address → Permissions → Camera → Allow.<br><br>' +
+            'Then reload this page and tap ACTIVATE CAMERA again.';
+        } else if (e.name === 'NotFoundError' || e.name === 'OverconstrainedError') {
+          $('#error').textContent = 'No camera was found on this device.';
+        } else if (e.name === 'NotReadableError') {
+          $('#error').textContent = 'The camera is being used by another app. Close it and try again.';
+        } else {
+          $('#error').textContent = 'Could not start camera: ' + (e.message || e.name);
+        }
       }
     });
 
